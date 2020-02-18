@@ -36,7 +36,7 @@ class LoRa(OutputModule):
 
         # initialize lora network
         from network import LoRa as LoRa_drv
-        self.lora = LoRa_drv(mode=LoRa_drv.LORAWAN, region=LoRa_drv.EU868, adr=self.config().get("adr"))
+        self.lora = LoRa_drv(mode=LoRa_drv.LORAWAN, region=LoRa_drv.EU868)
 
         # try to load previous lora connection if waking up from deep sleep
         if reset_cause == machine.DEEPSLEEP_RESET:
@@ -52,13 +52,30 @@ class LoRa(OutputModule):
             app_key = ubinascii.unhexlify(self.config().get("app_key"))
 
             # join a network using OTAA (Over the Air Activation)
-            self.lora.join(activation=LoRa_drv.OTAA, auth=(app_eui, app_key), timeout=0, dr=self.config().get("data_rate"))
+            self.lora.join(activation=LoRa_drv.OTAA, auth=(app_eui, app_key), timeout=0)
 
             # wait until the module has joined the network
             log_debug("Waiting until LoRa has joined.")
             while not self.lora.has_joined():
                 pass
             log_info("Joined LoRa network.")
+
+        self.minimum_t = self.config().get("minimum_time")
+        if self.minimum_t != 0:
+            try:
+                lap = self.chrono.read()
+            except:
+                log_info("Timer not defined. Defining now.")
+
+                # Import timer
+                from machine import Timer
+                import time
+
+                self.chrono = Timer.Chrono()
+
+                #Start timer
+                self.chrono.start()
+
 
         # create a lora socket to send data
         import socket
@@ -72,25 +89,11 @@ class LoRa(OutputModule):
         ready_for_Sending = True
 
         #Implement functionality to set minimum time between messages
-
-        if self.config().get("minimum_time") != 0:
-            try:
-                lap = chrono.read()
-            except:
-                log_info("Timer not defined. Defining now.")
-
-                # Import timer
-                from machine import Timer
-                import time
-
-                #Start timer
-                chrono.start()
-
+        if self.minimum_t != 0:
             #Check if enough time has passed
-            if chrono.read() > self.config.get("minimum_time"):
-                chrono.reset()
-
-            #If not enough time is passed break loop
+            if self.chrono.read() > self.minimum_t:
+                self.chrono.reset()
+                    #If not enough time is passed break loop
             else:        
                 ready_for_Sending = False
             
@@ -133,6 +136,7 @@ class LoRa(OutputModule):
                 ("app_eui", "UNSET", "app eui", ConfigFile.VariableType.string),
                 ("app_key", "UNSET", "app key", ConfigFile.VariableType.string),
                 ("data_rate", "5", "LoRa data rate. Use a value between 0 and 5.", ConfigFile.VariableType.uint),
-                ("adr", "false", "Enables LoRa adaptive data rate.", ConfigFile.VariableType.bool)
+                ("adr", "false", "Enables LoRa adaptive data rate.", ConfigFile.VariableType.bool),
+                ("minimum_time", "0", "Set minimum time between LoRa messages in seconds", ConfigFile.VariableType.uint)
             )
         )
