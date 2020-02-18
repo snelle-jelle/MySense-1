@@ -69,29 +69,56 @@ class LoRa(OutputModule):
 
 
     def send(self, binary, base64, json, json_base64):
-        try:
-            # make the socket blocking
-            # (waits for the data to be sent and for the 2 receive windows to expire)
-            self.socket.setblocking(True)
+        ready_for_Sending = True
 
-            # send some data
-            #s.send(bytes([0x01, 0x02, 0x03]))
-            self.socket.send(binary)
+        #Implement functionality to set minimum time between messages
 
-            # make the socket non-blocking
-            # (because if there's no data received it will block forever...)
-            self.socket.setblocking(False)
+        if self.config().get("minimum_time") != 0:
+            try:
+                lap = chrono.read()
+            except:
+                log_info("Timer not defined. Defining now.")
 
-            # get any data received (if any...)
-            data = self.socket.recv(64)
+                # Import timer
+                from machine import Timer
+                import time
 
-            # TODO activate ota mode
+                #Start timer
+                chrono.start()
 
-            # save lora connection
-            self.lora.nvram_save()
+            #Check if enough time has passed
+            if chrono.read() > self.config.get("minimum_time"):
+                chrono.reset()
 
-        except:
-            log_error("LoRa send failed!")
+            #If not enough time is passed break loop
+            else:        
+                ready_for_Sending = False
+            
+
+        if ready_for_Sending:
+            try:
+                # make the socket blocking
+                # (waits for the data to be sent and for the 2 receive windows to expire)
+                self.socket.setblocking(True)
+
+                # send some data
+                #s.send(bytes([0x01, 0x02, 0x03]))
+                self.socket.send(binary)
+
+                # make the socket non-blocking
+                # (because if there's no data received it will block forever...)
+                self.socket.setblocking(False)
+
+                # get any data received (if any...)
+                data = self.socket.recv(64)
+
+                # TODO activate ota mode
+
+                # save lora connection
+                self.lora.nvram_save()
+
+            except:
+                log_error("LoRa send failed!")
 
     def test(self):
         pass
